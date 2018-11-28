@@ -2,13 +2,16 @@ from flask import Flask, request, render_template, jsonify
 from flask_restful import Resource, Api
 from math import sqrt
 from PIL import Image, ImageDraw
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 import random
 import pandas as pd
-import numpy as np
-from matplotlib import pyplot as plt
+import math
+from random import randint
 from scipy.cluster.hierarchy import dendrogram, linkage
-import feedparser
-import re
+#import feedparser
+#import re
 
 app = Flask(__name__)
 api = Api(app)
@@ -26,17 +29,14 @@ def readfile(filename):
     data = []
     for line in lines[1:]:
         p = line.strip().split('\t')
-
         # First column in each row is the rowname
         rownames.append(p[0])
-
         # The data for this row is the remainder of the row
         data.append([float(x) for x in p[1:]])
-        return rownames, colnames, data
+    return rownames, colnames, data
 
 
 def pearson(v1, v2):
-
     # Simple sums
     sum1 = sum(v1)
     sum2 = sum(v2)
@@ -51,7 +51,8 @@ def pearson(v1, v2):
     # Calculate r (Pearson score)
     num = pSum - (sum1 * sum2 / len(v1))
     den = sqrt((sum1Sq - pow(sum1, 2) / len(v1)) * (sum2Sq - pow(sum2, 2) / len(v1)))
-    if den == 0: return 0
+    if den == 0:
+        return 0
     return 1.0 - num / den
 
 
@@ -105,7 +106,6 @@ def hcluster(rows, distance=pearson):
 
 
 def printclust(clust, labels=None, n=0):
-
     # indent to make a hierarchy layout
     for i in range(n): print ' ',
     if clust.id < 0:
@@ -126,7 +126,6 @@ def printclust(clust, labels=None, n=0):
 
 
 def getheight(clust):
-
     # Is this an endpoint? Then the height is just 1
     if clust.left == None and clust.right == None: return 1
 
@@ -136,7 +135,6 @@ def getheight(clust):
 
 
 def getdepth(clust):
-
     # The distance of an endpoint is 0.0
     if clust.left == None and clust.right == None: return 0
 
@@ -146,7 +144,6 @@ def getdepth(clust):
 
 
 def drawdendrogram(clust, labels, jpeg='clusters.jpg'):
-
     # height and width
     h = getheight(clust) * 20
     w = 1200
@@ -202,19 +199,20 @@ def rotatematrix(data):
 
 # K-Means Clustering
 
-def kcluster(rows, distance=pearson, k=4):
-
+def kcluster(rows, distance=pearson, k=5):
     # Determine the minimum and maximum values for each point
     ranges = [(min([row[i] for row in rows]), max([row[i] for row in rows]))
               for i in range(len(rows[0]))]
 
-
     # Create k randomly placed centroids
-    clusters = [[random.random() * (ranges[i][1] - ranges[i][0]) + ranges[i][0] for i in range(len(rows[0]))] for j in
-                range(k)]
+    clusters = [[random.random() * (ranges[i][1] - ranges[i][0]) + ranges[i][0]
+                 for i in range(len(rows[0]))] for j in range(k)]
+
     lastmatches = None
     for t in range(100):
+        print '##################'
         print 'Iteration %d' % t
+        print '##################'
         bestmatches = [[] for i in range(k)]
 
         # Find which centroid is the closest for each row
@@ -223,11 +221,14 @@ def kcluster(rows, distance=pearson, k=4):
             bestmatch = 0
             for i in range(k):
                 d = distance(clusters[i], row)
-                if d < distance(clusters[bestmatch], row): bestmatch = i
+                if d < distance(clusters[bestmatch], row):
+                    bestmatch = i
             bestmatches[bestmatch].append(j)
-
+            #print lastmatches
+            #print bestmatches
         # If the results are the same as last time, this is complete
-        if bestmatches == lastmatches: break
+        if bestmatches == lastmatches:
+            break
         lastmatches = bestmatches
 
         # Move the centroids to the average of their members
@@ -240,17 +241,48 @@ def kcluster(rows, distance=pearson, k=4):
                 for j in range(len(avgs)):
                     avgs[j] /= len(bestmatches[i])
                 clusters[i] = avgs
-        return bestmatches
+        print 'Finished'
+    print 'Iterations Finished'
+    return bestmatches
+
 
 
 @app.route('/')
-def hello_world():
-    return 'Hello World!'
+def main():
+    return render_template('main.html')
 
 
-@app.route('/kmeans')
-def kmeans():
-    return ''
+@app.route('/kmeans', methods=['GET'])
+def get_kmeans():
+    clusters = 5
+    blognames, words, data = readfile('blogdata.txt')
+    kclust = kcluster(data, k=5)
+    centroid0 = []
+    centroid1 = []
+    centroid2 = []
+    centroid3 = []
+    centroid4 = []
+    for r in kclust[0]:
+        centroid0.append(blognames[r])
+    for i in kclust[1]:
+        centroid1.append(blognames[i])
+    for j in kclust[2]:
+        centroid2.append(blognames[j])
+    for k in kclust[3]:
+        centroid3.append(blognames[k])
+    for l in kclust[4]:
+        centroid4.append(blognames[l])
+    centroids = ((centroid0, len(centroid0)), (centroid1, len(centroid1)), (centroid2, len(centroid2)),
+                 (centroid3, len(centroid3)), (centroid4, len(centroid4)))
+    print centroids
+    return render_template('kmeans.html', kclust=centroids, clust=clusters)
+
+
+@app.route('/hierarchical', methods=['GET'])
+def get_hierarchical():
+    #resultItems = drawdendrogram(clust,blognames,jpeg='blogclust.jpg')
+    return render_template('hierarchical.html')
+
 
 if __name__ == '__main__':
     app.run()
