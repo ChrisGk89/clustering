@@ -72,7 +72,7 @@ def getBestMatch(rows, k, distance, newClusters):
         for i in range(k):
             newDistance = distance(newClusters[i], row)
 
-            #if newDistance is less than baest match distance assign new best match
+            #if newDistance is less than best match distance assign new best match
 
             if newDistance < distance(newClusters[bestmatch], row):
                 bestmatch = i
